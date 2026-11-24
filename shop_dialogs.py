@@ -250,7 +250,7 @@ def reports_dialog(parent, reports):
     _show(window, _close_button(window, body))
 
 
-def help_dialog(parent):
+def help_dialog(parent, guest=False):
     """Explain the shop loop and winning conditions."""
     window, body = _window(parent, "도움말", "길드 보급 담당자 안내서")
     instructions = (
@@ -263,5 +263,7 @@ def help_dialog(parent):
         _label(body, title, "Gold").pack(anchor="w", pady=(12, 1))
         _label(body, description).pack(anchor="w")
     _label(body, f"목표는 상점 3단계와 보유 골드 {_gold(GOAL_GOLD)}입니다.\n"
-                 "매입, 가격 변경, 영업, 확장은 완료할 때마다 저장됩니다.", "Muted").pack(anchor="w", pady=(13, 0))
+                 + ("체험 모드에서는 실행 중에만 기록이 유지되며, 종료하면 삭제됩니다."
+                    if guest else "매입, 가격 변경, 영업, 확장은 완료할 때마다 MySQL에 저장됩니다."),
+                 "Muted").pack(anchor="w", pady=(13, 0))
     _show(window, _close_button(window, body))

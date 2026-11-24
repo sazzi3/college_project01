@@ -7,6 +7,7 @@ from tkinter import font, messagebox, ttk
 from contextlib import suppress
 
 from shop import ConfigError, DBError, ShopError, Store
+from guest_store import GuestStore
 from shop_dialogs import buy_dialog, help_dialog, price_dialog, reports_dialog, sales_dialog
 
 
@@ -157,7 +158,7 @@ class ShopApp:
 
     def show_login(self, error=""):
         self.reset_view()
-        self.header([("도움말", lambda: help_dialog(self.root))])
+        self.header([("도움말", lambda: help_dialog(self.root, guest=bool(getattr(self.store, "is_guest", False))))])
         content = self.start_panel("MySQL 연결", "서버에 연결하면 상점을 새로 열거나 저장한 게임을 이어갈 수 있습니다.")
         settings = frame(content)
         settings.pack(fill="x")
@@ -189,6 +190,20 @@ class ShopApp:
         ttk.Button(actions, text="연결하기", command=self.connect, style="Accent.TButton").pack(side="left")
         self.init_button = ttk.Button(actions, text="데이터베이스 초기화", command=self.initialize_database,
                                       style="Shop.TButton")
+
+        # DB가 없는 PC에서도 모든 게임 기능을 직접 체험할 수 있도록 합니다.
+        guest_actions = frame(content)
+        guest_actions.pack(fill="x", pady=(12, 0))
+        ttk.Button(guest_actions, text="MySQL 없이 체험하기", command=self.start_guest,
+                   style="Accent.TButton").pack(anchor="w")
+        label(content, "체험 모드는 별도 설치 없이 플레이할 수 있으며, 종료하면 기록이 삭제됩니다.",
+              fg=MUTED, size=9, wraplength=480, justify="left").pack(anchor="w", pady=(6, 0))
+
+    def start_guest(self):
+        if self.store is not None:
+            self.store.close()
+        self.store = GuestStore()
+        self.show_saves()
 
     def settings(self):
         settings = {key: value.get() for key, value in self.connection_vars.items()}
@@ -226,7 +241,7 @@ class ShopApp:
             elif exc.errno in (1044, 1045):
                 self.error_text.set("MySQL 사용자, 비밀번호 또는 데이터베이스 접근 권한을 확인하세요.")
             else:
-                self.error_text.set(f"MySQL 연결에 실패했습니다. 서버가 실행 중인지 확인하세요. ({exc})")
+                self.error_text.set("MySQL 서버에 연결할 수 없습니다. MySQL을 실행하거나 아래 체험 모드로 시작하세요.")
             return
         finally:
             self.root.configure(cursor="")
@@ -261,8 +276,13 @@ class ShopApp:
                 return
         self.reset_view()
         self.shop_id = None
-        self.header([("도움말", lambda: help_dialog(self.root)), ("연결 설정", self.disconnect)])
-        content = self.start_panel("보급 기록 선택", "기존 보급소 장부를 펼치거나 새 상점의 첫 장을 기록하세요.")
+        home_title = "처음 화면" if getattr(self.store, "is_guest", False) else "연결 설정"
+        self.header([("도움말", lambda: help_dialog(self.root, guest=bool(getattr(self.store, "is_guest", False)))),
+                     (home_title, self.disconnect)])
+        subtitle = ("체험용 상점을 새로 만드세요. 체험 기록은 게임을 종료하면 사라집니다."
+                    if getattr(self.store, "is_guest", False)
+                    else "기존 보급소 장부를 펼치거나 새 상점의 첫 장을 기록하세요.")
+        content = self.start_panel("보급 기록 선택", subtitle)
         table_frame = frame(content)
         table_frame.pack(fill="x")
         self.save_table = ttk.Treeview(table_frame, columns=("name", "day", "gold"), show="headings",
@@ -316,11 +336,14 @@ class ShopApp:
         self.shop_id = shop_id
         self.header([
             ("영업 기록", self.show_reports),
-            ("도움말", lambda: help_dialog(self.root)),
+            ("도움말", lambda: help_dialog(self.root, guest=bool(getattr(self.store, "is_guest", False)))),
             ("상점 선택", self.show_saves),
         ])
         page = frame(self.root, PARCHMENT, padx=24, pady=16)
         page.pack(fill="both", expand=True)
+        if getattr(self.store, "is_guest", False):
+            label(page, "체험 모드 · MySQL 연결 없음 · 종료 시 상점 기록이 삭제됩니다.",
+                  bg=PARCHMENT, fg=GOLD, size=9).pack(anchor="w", pady=(0, 8))
         hero = frame(page, FOREST)
         hero.pack(fill="x", pady=(0, 12))
         hero.grid_columnconfigure(0, weight=1)
